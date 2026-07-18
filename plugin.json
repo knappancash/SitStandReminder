@@ -1,0 +1,30 @@
+{
+    "$schema": "https://danklinux.com/schemas/plugin.json",
+    "id": "sitStandReminder",
+    "name": "Sit/Stand Reminder",
+    "description": "Simple reminders to alternate between sitting and standing",
+    "version": "1.0.0",
+    "author": "Justus",
+    "license": "MIT",
+    "icon": "desk",
+    "type": "composite",
+    "capabilities": [
+        "daemon",
+        "dankbar-widget",
+        "control-center"
+    ],
+    "components": {
+        "daemon": "./SitStandDaemon.qml",
+        "widget": "./SitStandWidget.qml"
+    },
+    "settings": "./SitStandSettings.qml",
+    "requires_dms": ">=1.5.0",
+    "dependencies": [
+        "notify-send"
+    ],
+    "permissions": [
+        "settings_read",
+        "settings_write",
+        "process"
+    ]
+}
