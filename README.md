@@ -2,6 +2,8 @@
 
 A lightweight DankMaterialShell plugin that reminds you to alternate between sitting and standing. It tracks only the posture changes you confirm—keyboard and mouse activity are never treated as posture detection.
 
+The canonical repository is hosted on [Codeberg](https://codeberg.org/knappancash/SitStandReminder). The [GitHub repository](https://github.com/knappancash/SitStandReminder) is a mirror.
+
 ![Sit/Stand Reminder popout](sit-stand-reminder-preview.png)
 
 ## Features
