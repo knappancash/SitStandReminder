@@ -128,9 +128,8 @@ PluginComponent {
     popoutContent: Component {
         PopoutComponent {
             id: popout
-            headerText: "Sit/Stand Reminder"
             detailsText: root.popoutStatusText
-            showCloseButton: true
+            showCloseButton: false
 
             Column {
                 width: parent.width
