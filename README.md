@@ -1,6 +1,6 @@
 # Sit/Stand Reminder
 
-A lightweight DankMaterialShell plugin that reminds you to alternate between sitting and standing. It tracks only the posture changes you confirm—keyboard and mouse activity are never treated as posture detection.
+A lightweight DankMaterialShell plugin that reminds you to alternate between sitting and standing. Posture changes come from your confirmations, with sitting as the fresh-day fallback; keyboard and mouse activity are never treated as posture detection.
 
 The canonical repository is hosted on [Codeberg](https://codeberg.org/knappancash/SitStandReminder). The [GitHub repository](https://github.com/knappancash/SitStandReminder) is a mirror.
 
@@ -9,10 +9,11 @@ The canonical repository is hosted on [Codeberg](https://codeberg.org/knappancas
 ## Features
 
 - Configurable sitting and standing intervals
-- Persistent actionable notifications with one configurable snooze option
+- Persistent transition notifications, with actions and one configurable snooze option when supported
 - A distinct transition sound using DMS sound settings
 - Idle-aware timer pausing
-- 30 days of confirmed sitting and standing totals
+- 30 days of tracked sitting and standing totals
+- Automatic reminder cutoff after reaching the daily standing target
 - Shared state across every bar and monitor
 
 ## Installation
@@ -23,7 +24,7 @@ For local development, link this checkout and rescan plugins:
 
 ```sh
 mkdir -p ~/.config/DankMaterialShell/plugins
-ln -s "$PWD/SitStandReminder" ~/.config/DankMaterialShell/plugins/sitStandReminder
+ln -s "$PWD" ~/.config/DankMaterialShell/plugins/sitStandReminder
 dms ipc call plugin-scan scan
 ```
 
@@ -34,7 +35,9 @@ Requires DMS 1.5 or newer and `notify-send` from `libnotify`.
 1. Open the widget and confirm whether you are sitting or standing.
 2. When a transition notification appears, change posture and confirm it from the notification or widget.
 3. The notification stays visible until you confirm, snooze, or close it. Closing it leaves the transition overdue.
-4. Pause reminders when you do not want them. Enabling them again starts a fresh sitting interval.
+4. Pause reminders when you do not want them. Enabling them again resumes the same posture and interval where they stopped, falling back to sitting only when no posture is known.
+
+On startup, today's saved posture is restored. If no posture has been recorded for the current day, the plugin starts with sitting.
 
 The defaults are 30 minutes sitting, 15 minutes standing, and a 10-minute snooze. They are starting points rather than medical guidance; adjust them to what feels comfortable.
 
@@ -62,6 +65,6 @@ dms ipc call sitStandReminder status
 dms ipc call sitStandReminder history
 ```
 
-The popout shows today plus the five most recent completed days. `history` returns all retained completed days as JSON. Only daily totals are stored; there is no event or activity log.
+The popout shows today plus the seven most recent completed days by default; selecting the graph cycles through 14 and 30 days. `history` returns all retained completed days as JSON. Only daily totals are stored; there is no event or activity log.
 
-Physical posture always requires explicit confirmation. Notification actions require support from the active notification server; the widget controls continue to work without them.
+Apart from the fresh-day sitting fallback, posture changes require explicit confirmation. Notification actions require support from the active notification server; the widget controls continue to work without them.

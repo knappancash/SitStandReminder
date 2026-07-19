@@ -26,6 +26,38 @@ function splitAtDayBoundary(start, end) {
     };
 }
 
+function ceilToMinute(seconds) {
+    return Math.ceil(Math.max(0, Number(seconds) || 0) / 60) * 60;
+}
+
+function resumePosture(previousPosture) {
+    return previousPosture === "standing" ? "standing" : "sitting";
+}
+
+function postureToggleOperation(currentPosture) {
+    return currentPosture === "sitting" ? "stand" : "sit";
+}
+
+function shouldUndoPostureChange(previousPosture, requestedPosture, undoUntil, now) {
+    return (previousPosture === "sitting" || previousPosture === "standing") && requestedPosture === previousPosture && now <= undoUntil;
+}
+
+function shiftTimestamp(timestamp, duration) {
+    return timestamp > 0 ? timestamp + Math.max(0, duration) : timestamp;
+}
+
+function shiftClockTimestamp(timestamp, clockDelta) {
+    return timestamp > 0 ? timestamp + clockDelta : timestamp;
+}
+
+function hasCurrentDayPosture(savedDate, lastUpdateDate, currentDate, posture) {
+    return (savedDate === currentDate || lastUpdateDate === currentDate) && (posture === "sitting" || posture === "standing");
+}
+
+function standingTargetReached(standingSeconds, targetSeconds) {
+    return Number(targetSeconds) > 0 && Number(standingSeconds) >= Number(targetSeconds);
+}
+
 function normalizeHistory(value, maximumDays) {
     if (typeof value === "string") {
         try {
@@ -58,4 +90,49 @@ function recordDay(history, date, sittingSeconds, standingSeconds, maximumDays) 
         sittingSeconds: sittingSeconds,
         standingSeconds: standingSeconds
     }]), maximumDays);
+}
+
+function historyChart(history, maximumDays) {
+    const days = (Array.isArray(history) ? history : []).slice(-Math.max(1, Math.floor(Number(maximumDays) || 7)));
+    const chart = { days: days, sitting: [], standing: [], maximum: 1, sittingAverage: 0, standingAverage: 0, labels: [] };
+    days.forEach(day => {
+        const sitting = Math.max(0, Number(day.sittingSeconds) || 0);
+        const standing = Math.max(0, Number(day.standingSeconds) || 0);
+        chart.sitting.push(sitting);
+        chart.standing.push(standing);
+        chart.maximum = Math.max(chart.maximum, sitting, standing);
+        chart.sittingAverage += sitting;
+        chart.standingAverage += standing;
+    });
+    if (days.length > 0) {
+        chart.sittingAverage = Math.floor(chart.sittingAverage / days.length);
+        chart.standingAverage = Math.floor(chart.standingAverage / days.length);
+        const labelCount = Math.min(5, days.length);
+        for (let index = 0; index < labelCount; index++) {
+            const dayIndex = labelCount === 1 ? 0 : Math.round(index * (days.length - 1) / (labelCount - 1));
+            chart.labels.push({ index: dayIndex, date: days[dayIndex].date });
+        }
+    }
+    return chart;
+}
+
+function nextHistoryRange(range) {
+    return range === 7 ? 14 : (range === 14 ? 30 : 7);
+}
+
+function dateFormatWithoutYear(format) {
+    return String(format).replace(/^[yY]+[^dDM]*/, "").replace(/[^dDM]*[yY]+$/, "");
+}
+
+function nearestChartPoint(sitting, standing, maximum, width, height, x, y, radius) {
+    let nearest = null;
+    const series = [sitting, standing];
+    series.forEach((values, seriesIndex) => values.forEach((value, index) => {
+        const pointX = (index + 0.5) * width / values.length;
+        const pointY = height - 4 - value / Math.max(1, maximum) * (height - 8);
+        const distance = Math.hypot(x - pointX, y - pointY);
+        if (distance <= radius && (!nearest || distance < nearest.distance))
+            nearest = { index: index, series: seriesIndex, distance: distance };
+    }));
+    return nearest;
 }

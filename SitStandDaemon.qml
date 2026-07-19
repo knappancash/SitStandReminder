@@ -13,6 +13,7 @@ PluginComponent {
 
     readonly property int minute: 60000
     readonly property int historyDays: 30
+    readonly property int postureUndoGraceMs: 5000
     property bool initialized: false
     property bool remindersEnabled: true
     property string posture: "unknown"
@@ -38,6 +39,9 @@ PluginComponent {
     property int periodicSaveTicks: 0
     property int appliedSittingMinutes: 30
     property int appliedStandingMinutes: 15
+    property bool targetNotificationsSuppressed: false
+    property var postureUndoState: null
+    property double postureUndoUntil: 0
 
     property bool notifyAvailable: false
     property bool notificationActionsSupported: false
@@ -45,7 +49,7 @@ PluginComponent {
     property var queuedNotification: null
     property int notificationGeneration: 0
 
-    readonly property bool configuredEnabled: pluginData.enabled ?? true
+    readonly property bool configuredEnabled: pluginData.remindersEnabled ?? true
     readonly property int sittingMinutes: settingInt("sittingMinutes", 30, 1, 240)
     readonly property int standingMinutes: settingInt("standingMinutes", 15, 1, 120)
     readonly property int defaultSnoozeMinutes: settingInt("defaultSnoozeMinutes", 10, 1, 60)
@@ -68,10 +72,6 @@ PluginComponent {
         return Number.isFinite(number) ? number : fallback;
     }
 
-    function validPosture(value) {
-        return value === "sitting" || value === "standing" ? value : "unknown";
-    }
-
     function validTarget(value) {
         return value === "sitting" || value === "standing" ? value : "";
     }
@@ -84,16 +84,96 @@ PluginComponent {
         return postureName === "sitting" ? "standing" : "sitting";
     }
 
+    function standingTargetReached() {
+        return SitStandMath.standingTargetReached(todayStandingSeconds, dailyStandingTargetMinutes * 60);
+    }
+
+    function updateTargetMode(now) {
+        const reached = standingTargetReached();
+        if (reached && !targetNotificationsSuppressed) {
+            targetNotificationsSuppressed = true;
+            clearPostureUndo();
+            clearPending();
+        } else if (!reached && targetNotificationsSuppressed) {
+            targetNotificationsSuppressed = false;
+            clearPostureUndo();
+            if (posture !== "unknown") {
+                postureStartedAt = now;
+                pausedMillis = 0;
+                dueAt = now + durationFor(posture);
+                clearPending();
+                graceUntil = 0;
+            }
+        }
+        return reached;
+    }
+
+    function clearPostureUndo() {
+        postureUndoState = null;
+        postureUndoUntil = 0;
+    }
+
+    function rememberPostureForUndo(now) {
+        postureUndoState = {
+            posture: posture,
+            postureStartedAt: postureStartedAt,
+            dueAt: dueAt,
+            pausedMillis: pausedMillis,
+            pendingTarget: pendingTarget,
+            isOverdue: isOverdue,
+            originalTargetDueAt: originalTargetDueAt,
+            snoozeUntil: snoozeUntil,
+            lastNotificationAt: lastNotificationAt,
+            reminderCount: reminderCount,
+            currentDate: currentDate,
+            todaySittingSeconds: todaySittingSeconds,
+            todayStandingSeconds: todayStandingSeconds,
+            dailyHistory: dailyHistory.slice(),
+            lastStateUpdateAt: lastStateUpdateAt,
+            graceUntil: graceUntil
+        };
+        postureUndoUntil = now + postureUndoGraceMs;
+    }
+
+    function undoPostureChange(now) {
+        const previous = postureUndoState;
+        closeNotification();
+        posture = previous.posture;
+        postureStartedAt = previous.postureStartedAt;
+        dueAt = previous.dueAt;
+        pausedMillis = previous.pausedMillis;
+        pendingTarget = previous.pendingTarget;
+        isOverdue = previous.isOverdue;
+        originalTargetDueAt = previous.originalTargetDueAt;
+        snoozeUntil = previous.snoozeUntil;
+        lastNotificationAt = previous.lastNotificationAt;
+        reminderCount = previous.reminderCount;
+        currentDate = previous.currentDate;
+        todaySittingSeconds = previous.todaySittingSeconds;
+        todayStandingSeconds = previous.todayStandingSeconds;
+        dailyHistory = previous.dailyHistory;
+        lastStateUpdateAt = previous.lastStateUpdateAt;
+        graceUntil = previous.graceUntil;
+        clearPostureUndo();
+        accountTo(now);
+        publish(now);
+        persist();
+    }
+
     function tryInitialize() {
         if (initialized || !pluginService || !pluginId)
             return;
 
         const now = Date.now();
+        const today = SitStandMath.dateKey(now);
         ensureStateWriter();
         const saved = pluginService.loadPluginState(pluginId, "runtime", {});
         const state = saved && typeof saved === "object" ? saved : {};
+        const savedUpdateAt = finite(state.lastStateUpdateAt, 0);
+        const lastUpdateDate = savedUpdateAt > 0 ? SitStandMath.dateKey(savedUpdateAt) : "";
+        const hasTodayPosture = SitStandMath.hasCurrentDayPosture(state.currentDate, lastUpdateDate, today, state.posture);
         remindersEnabled = configuredEnabled;
-        posture = validPosture(state.posture);
+        posture = hasTodayPosture ? state.posture : "sitting";
         postureStartedAt = finite(state.postureStartedAt, 0);
         dueAt = finite(state.dueAt, 0);
         pausedMillis = Math.max(0, finite(state.pausedMillis, 0));
@@ -103,7 +183,7 @@ PluginComponent {
         snoozeUntil = finite(state.snoozeUntil, 0);
         lastNotificationAt = finite(state.lastNotificationAt, 0);
         reminderCount = Math.max(0, Math.round(finite(state.reminderCount, 0)));
-        currentDate = typeof state.currentDate === "string" ? state.currentDate : SitStandMath.dateKey(now);
+        currentDate = typeof state.currentDate === "string" ? state.currentDate : today;
         todaySittingSeconds = Math.max(0, finite(state.todaySittingSeconds, 0));
         todayStandingSeconds = Math.max(0, finite(state.todayStandingSeconds, 0));
         dailyHistory = SitStandMath.normalizeHistory(state.dailyHistoryJson ?? state.dailyHistory, historyDays);
@@ -112,6 +192,19 @@ PluginComponent {
         disabledAt = finite(state.disabledAt, 0);
         appliedSittingMinutes = Math.round(SitStandMath.clampNumber(state.appliedSittingMinutes, sittingMinutes, 1, 240));
         appliedStandingMinutes = Math.round(SitStandMath.clampNumber(state.appliedStandingMinutes, standingMinutes, 1, 120));
+
+        if (!hasTodayPosture) {
+            postureStartedAt = now;
+            dueAt = now + durationFor(posture);
+            pausedMillis = 0;
+            pendingTarget = "";
+            isOverdue = false;
+            originalTargetDueAt = 0;
+            snoozeUntil = 0;
+            lastNotificationAt = 0;
+            reminderCount = 0;
+            lastStateUpdateAt = now;
+        }
 
         const savedIdleStart = state.isIdle ? finite(state.idleStartedAt, now) : 0;
         if (savedIdleStart > 0 && now > savedIdleStart) {
@@ -219,6 +312,7 @@ PluginComponent {
             if (shouldCount)
                 addPostureSeconds(split.currentSeconds);
             lastStateUpdateAt = now;
+            persist();
             return;
         }
 
@@ -230,12 +324,12 @@ PluginComponent {
     function pauseDeadline(duration) {
         if (duration <= 0 || posture === "unknown")
             return;
-        dueAt += duration;
+        dueAt = SitStandMath.shiftTimestamp(dueAt, duration);
         pausedMillis += duration;
-        if (originalTargetDueAt > 0)
-            originalTargetDueAt += duration;
-        if (snoozeUntil > 0)
-            snoozeUntil += duration;
+        originalTargetDueAt = SitStandMath.shiftTimestamp(originalTargetDueAt, duration);
+        snoozeUntil = SitStandMath.shiftTimestamp(snoozeUntil, duration);
+        lastNotificationAt = SitStandMath.shiftTimestamp(lastNotificationAt, duration);
+        graceUntil = SitStandMath.shiftTimestamp(graceUntil, duration);
     }
 
     function handleIdleChanged(idle) {
@@ -243,6 +337,7 @@ PluginComponent {
             return;
         const now = Date.now();
         accountTo(now);
+        clearPostureUndo();
         if (idle) {
             isIdle = true;
             idleStartedAt = now;
@@ -263,16 +358,15 @@ PluginComponent {
             return;
         const gap = now - lastTickAt;
         if (gap < -5000) {
-            if (postureStartedAt > 0)
-                postureStartedAt += gap;
-            if (dueAt > 0)
-                dueAt += gap;
-            if (originalTargetDueAt > 0)
-                originalTargetDueAt += gap;
-            if (snoozeUntil > 0)
-                snoozeUntil += gap;
-            if (lastNotificationAt > 0)
-                lastNotificationAt += gap;
+            clearPostureUndo();
+            postureStartedAt = SitStandMath.shiftClockTimestamp(postureStartedAt, gap);
+            dueAt = SitStandMath.shiftClockTimestamp(dueAt, gap);
+            originalTargetDueAt = SitStandMath.shiftClockTimestamp(originalTargetDueAt, gap);
+            snoozeUntil = SitStandMath.shiftClockTimestamp(snoozeUntil, gap);
+            lastNotificationAt = SitStandMath.shiftClockTimestamp(lastNotificationAt, gap);
+            graceUntil = SitStandMath.shiftClockTimestamp(graceUntil, gap);
+            disabledAt = SitStandMath.shiftClockTimestamp(disabledAt, gap);
+            idleStartedAt = SitStandMath.shiftClockTimestamp(idleStartedAt, gap);
             lastStateUpdateAt = now;
         } else if (gap > idleThresholdSeconds * 1000 && !isIdle) {
             accountTo(lastTickAt);
@@ -287,6 +381,8 @@ PluginComponent {
 
     function evaluate(now) {
         if (!initialized || !remindersEnabled || posture === "unknown" || isIdle || now < graceUntil)
+            return;
+        if (updateTargetMode(now))
             return;
 
         if (!pendingTarget && now >= dueAt) {
@@ -330,7 +426,15 @@ PluginComponent {
             return "Already " + newPosture + "; interval unchanged";
 
         const now = Date.now();
+        if (postureUndoState && SitStandMath.shouldUndoPostureChange(postureUndoState.posture, newPosture, postureUndoUntil, now)) {
+            undoPostureChange(now);
+            return "Reverted to " + newPosture;
+        }
         accountTo(now);
+        if (posture === "unknown")
+            clearPostureUndo();
+        else
+            rememberPostureForUndo(now);
         posture = newPosture;
         postureStartedAt = now;
         pausedMillis = 0;
@@ -354,6 +458,7 @@ PluginComponent {
     }
 
     function makeUnknown(now) {
+        clearPostureUndo();
         closeNotification();
         posture = "unknown";
         postureStartedAt = 0;
@@ -398,6 +503,7 @@ PluginComponent {
             return "ERROR: set current posture first";
         const now = Date.now();
         accountTo(now);
+        clearPostureUndo();
         postureStartedAt = now;
         pausedMillis = 0;
         dueAt = now + durationFor(posture);
@@ -411,6 +517,7 @@ PluginComponent {
     function resetToday() {
         const now = Date.now();
         accountTo(now);
+        clearPostureUndo();
         currentDate = SitStandMath.dateKey(now);
         todaySittingSeconds = 0;
         todayStandingSeconds = 0;
@@ -447,19 +554,24 @@ PluginComponent {
             return;
         const now = Date.now();
         accountTo(now);
+        clearPostureUndo();
         if (!value) {
             remindersEnabled = false;
             disabledAt = now;
             closeNotification();
         } else {
             remindersEnabled = true;
-            posture = "sitting";
-            postureStartedAt = now;
-            pausedMillis = 0;
-            dueAt = now + durationFor(posture);
-            clearPending();
+            if (posture === "unknown") {
+                posture = SitStandMath.resumePosture(posture);
+                postureStartedAt = now;
+                pausedMillis = 0;
+                dueAt = now + durationFor(posture);
+                clearPending();
+                graceUntil = 0;
+            } else {
+                pauseDeadline(Math.max(0, now - disabledAt));
+            }
             disabledAt = 0;
-            graceUntil = 0;
         }
         lastStateUpdateAt = now;
         publish(now);
@@ -469,8 +581,8 @@ PluginComponent {
     function setEnabled(value) {
         applyEnabled(value);
         if (pluginService)
-            pluginService.savePluginData(pluginId, "enabled", value);
-        return value ? "Reminders enabled; assumed sitting" : "Reminders disabled";
+            pluginService.savePluginData(pluginId, "remindersEnabled", value);
+        return value ? "Reminders enabled; " + posture : "Reminders disabled";
     }
 
     function recalculateDue() {
@@ -478,6 +590,12 @@ PluginComponent {
             return;
         const now = Date.now();
         accountTo(now);
+        clearPostureUndo();
+        if (updateTargetMode(now)) {
+            publish(now);
+            persist();
+            return;
+        }
         dueAt = postureStartedAt + durationFor(posture) + pausedMillis;
         if (pendingTarget) {
             clearPending();
@@ -494,7 +612,7 @@ PluginComponent {
     }
 
     function sendDeadlineNotification() {
-        if (!notifyAvailable)
+        if (!notifyAvailable || standingTargetReached())
             return;
         if (SettingsData.soundsEnabled)
             AudioService.playCriticalNotificationSound();
@@ -593,6 +711,8 @@ PluginComponent {
             return "Paused while away";
         if (now < graceUntil)
             return "Resuming in " + Math.ceil((graceUntil - now) / 1000) + "s";
+        if (standingTargetReached())
+            return "Standing target reached";
         if (pendingTarget) {
             if (snoozeUntil > now)
                 return "Snoozed " + Math.ceil((snoozeUntil - now) / minute) + "m";
@@ -623,6 +743,7 @@ PluginComponent {
         setGlobal(globalReminderCount, reminderCount);
         setGlobal(globalTodaySittingSeconds, Math.floor(todaySittingSeconds));
         setGlobal(globalTodayStandingSeconds, Math.floor(todayStandingSeconds));
+        setGlobal(globalStandingTargetReached, standingTargetReached());
         setGlobal(globalDailyHistoryJson, JSON.stringify(dailyHistory));
         setGlobal(globalDailyStandingTargetSeconds, dailyStandingTargetMinutes * 60);
         setGlobal(globalStatusText, statusText(now));
@@ -651,6 +772,15 @@ PluginComponent {
                 recalculateDue();
             else
                 persist();
+        }
+    }
+    onDailyStandingTargetMinutesChanged: {
+        if (initialized) {
+            const now = Date.now();
+            accountTo(now);
+            updateTargetMode(now);
+            publish(now);
+            persist();
         }
     }
     IdleMonitor {
@@ -693,6 +823,7 @@ PluginComponent {
             const now = Date.now();
             root.handleClockGap(now);
             root.lastTickAt = now;
+            root.accountTo(now);
             root.evaluate(now);
             root.publish(now);
         }
@@ -736,9 +867,14 @@ PluginComponent {
         function remindNow(): string {
             if (!root.remindersEnabled || root.posture === "unknown")
                 return "ERROR: enable reminders and set posture first";
-            root.dueAt = Date.now();
-            root.evaluate(root.dueAt);
-            root.publish(root.dueAt);
+            const now = Date.now();
+            if (root.standingTargetReached())
+                return "ERROR: standing target already reached";
+            if (root.isIdle || now < root.graceUntil)
+                return "ERROR: reminders are temporarily paused";
+            root.dueAt = now;
+            root.evaluate(now);
+            root.publish(now);
             return "Reminder requested";
         }
         function resetSession(): string { return root.resetSession(); }
@@ -760,9 +896,10 @@ PluginComponent {
     PluginGlobalVar { id: globalReminderCount; varName: "reminderCount"; defaultValue: 0 }
     PluginGlobalVar { id: globalTodaySittingSeconds; varName: "todaySittingSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: globalTodayStandingSeconds; varName: "todayStandingSeconds"; defaultValue: 0 }
+    PluginGlobalVar { id: globalStandingTargetReached; varName: "standingTargetReached"; defaultValue: false }
     PluginGlobalVar { id: globalDailyHistoryJson; varName: "dailyHistoryJson"; defaultValue: "[]" }
     PluginGlobalVar { id: globalDailyStandingTargetSeconds; varName: "dailyStandingTargetSeconds"; defaultValue: 7200 }
-    PluginGlobalVar { id: globalStatusText; varName: "statusText"; defaultValue: "Loading" }
+    PluginGlobalVar { id: globalStatusText; varName: "statusText"; defaultValue: "Set current posture" }
     PluginGlobalVar { id: globalNotificationActionsSupported; varName: "notificationActionsSupported"; defaultValue: false }
 
     Component.onDestruction: {

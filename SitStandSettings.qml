@@ -45,11 +45,11 @@ PluginSettings {
     }
 
     StyledText { text: "General"; font.pixelSize: Theme.fontSizeMedium; font.weight: Font.DemiBold; color: Theme.surfaceText }
-    ToggleSetting { settingKey: "enabled"; label: "Enable reminders"; defaultValue: true }
+    ToggleSetting { settingKey: "remindersEnabled"; label: "Enable reminders"; defaultValue: true }
     SliderSetting { settingKey: "sittingMinutes"; label: "Sitting duration"; description: "Time before requesting standing"; defaultValue: 30; minimum: 1; maximum: 240; unit: "min" }
     SliderSetting { settingKey: "standingMinutes"; label: "Standing duration"; description: "Time before requesting sitting"; defaultValue: 15; minimum: 1; maximum: 120; unit: "min" }
     SliderSetting { settingKey: "defaultSnoozeMinutes"; label: "Notification snooze"; description: "Single delay offered by transition notifications"; defaultValue: 10; minimum: 1; maximum: 60; unit: "min" }
-    SliderSetting { settingKey: "dailyStandingTargetMinutes"; label: "Daily initial standing target"; defaultValue: 120; minimum: 5; maximum: 480; unit: "min" }
+    SliderSetting { settingKey: "dailyStandingTargetMinutes"; label: "Daily standing target"; defaultValue: 120; minimum: 5; maximum: 480; unit: "min" }
     SliderSetting { settingKey: "stalenessHours"; label: "Posture staleness"; description: "Ask again after a long pause or restart gap"; defaultValue: 12; minimum: 1; maximum: 48; unit: "h" }
 
     StyledText { text: "Reminder behaviour"; font.pixelSize: Theme.fontSizeMedium; font.weight: Font.DemiBold; color: Theme.surfaceText }
