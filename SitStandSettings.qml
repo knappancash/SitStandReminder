@@ -8,6 +8,7 @@ PluginSettings {
     id: root
     pluginId: "sitStandReminder"
     property string armedReset: ""
+    property int currentTab: 0
 
     function invoke(operation) {
         Quickshell.execDetached(["dms", "ipc", "call", "sitStandReminder", operation]);
@@ -29,48 +30,49 @@ PluginSettings {
         onTriggered: root.armedReset = ""
     }
 
-    StyledText {
-        width: parent.width
-        text: "Sit/Stand Reminder"
-        font.pixelSize: Theme.fontSizeLarge
-        font.weight: Font.Bold
-        color: Theme.surfaceText
-    }
-    StyledText {
-        width: parent.width
-        text: "Evidence-informed defaults, not medical rules. Alternate positions, add light movement where possible, and adjust or stop if standing causes pain, dizziness, or other symptoms."
-        font.pixelSize: Theme.fontSizeSmall
-        color: Theme.surfaceVariantText
-        wrapMode: Text.WordWrap
-    }
-
-    StyledText { text: "General"; font.pixelSize: Theme.fontSizeMedium; font.weight: Font.DemiBold; color: Theme.surfaceText }
     ToggleSetting { settingKey: "remindersEnabled"; label: "Enable reminders"; defaultValue: true }
-    SliderSetting { settingKey: "sittingMinutes"; label: "Sitting duration"; description: "Time before requesting standing"; defaultValue: 30; minimum: 1; maximum: 240; unit: "min" }
-    SliderSetting { settingKey: "standingMinutes"; label: "Standing duration"; description: "Time before requesting sitting"; defaultValue: 15; minimum: 1; maximum: 120; unit: "min" }
-    SliderSetting { settingKey: "defaultSnoozeMinutes"; label: "Notification snooze"; description: "Single delay offered by transition notifications"; defaultValue: 10; minimum: 1; maximum: 60; unit: "min" }
-    SliderSetting { settingKey: "dailyStandingTargetMinutes"; label: "Daily standing target"; defaultValue: 120; minimum: 5; maximum: 480; unit: "min" }
-    SliderSetting { settingKey: "stalenessHours"; label: "Posture staleness"; description: "Ask again after a long pause or restart gap"; defaultValue: 12; minimum: 1; maximum: 48; unit: "h" }
 
-    StyledText { text: "Reminder behaviour"; font.pixelSize: Theme.fontSizeMedium; font.weight: Font.DemiBold; color: Theme.surfaceText }
-    SliderSetting { settingKey: "reminderRepeatMinutes"; label: "Reminder repeat interval"; defaultValue: 10; minimum: 1; maximum: 60; unit: "min" }
-    SliderSetting { settingKey: "maximumAutomaticRepeats"; label: "Maximum automatic repeats"; defaultValue: 3; minimum: 0; maximum: 10 }
-    SliderSetting { settingKey: "returnGraceSeconds"; label: "Return grace period"; defaultValue: 60; minimum: 0; maximum: 600; unit: "s" }
-    ToggleSetting { settingKey: "actionableNotifications"; label: "Actionable notifications"; description: "Falls back to ordinary notifications when unsupported"; defaultValue: true }
-
-    StyledText { text: "Idle behaviour"; font.pixelSize: Theme.fontSizeMedium; font.weight: Font.DemiBold; color: Theme.surfaceText }
-    ToggleSetting { settingKey: "pauseWhileIdle"; label: "Pause while idle"; description: "Uses inhibitor-aware Wayland idle monitoring"; defaultValue: true }
-    SliderSetting { settingKey: "idleThresholdSeconds"; label: "Idle threshold"; defaultValue: 300; minimum: 30; maximum: 3600; unit: "s" }
-    ToggleSetting { settingKey: "countIdleTime"; label: "Count idle time in statistics"; description: "Off by default because posture is unknown while away"; defaultValue: false }
-
-    StyledText { text: "Data"; font.pixelSize: Theme.fontSizeMedium; font.weight: Font.DemiBold; color: Theme.surfaceText }
-    StyledText {
+    Item {
         width: parent.width
-        text: "Destructive actions require a second click within five seconds."
+        height: settingsTabs.height + Theme.spacingM
+
+        DankTabBar {
+            id: settingsTabs
+            width: parent.width
+            tabHeight: 44
+            spacing: Theme.spacingS
+            showIcons: false
+            currentIndex: root.currentTab
+            model: [{ text: "Timing" }, { text: "Reminders" }, { text: "Idle" }, { text: "Data" }]
+            onTabClicked: index => root.currentTab = index
+            Component.onCompleted: Qt.callLater(updateIndicator)
+        }
+    }
+    SliderSetting { visible: root.currentTab === 0; settingKey: "sittingMinutes"; label: "Sitting duration"; description: "Time before requesting standing"; defaultValue: 30; minimum: 1; maximum: 240; unit: "min" }
+    SliderSetting { visible: root.currentTab === 0; settingKey: "standingMinutes"; label: "Standing duration"; description: "Time before requesting sitting"; defaultValue: 15; minimum: 1; maximum: 120; unit: "min" }
+    SliderSetting { visible: root.currentTab === 0; settingKey: "defaultSnoozeMinutes"; label: "Notification snooze"; description: "Single delay offered by transition notifications"; defaultValue: 10; minimum: 1; maximum: 60; unit: "min" }
+    SliderSetting { visible: root.currentTab === 0; settingKey: "dailyStandingTargetMinutes"; label: "Daily standing target"; defaultValue: 120; minimum: 5; maximum: 480; unit: "min" }
+
+    SliderSetting { visible: root.currentTab === 1; settingKey: "reminderRepeatMinutes"; label: "Reminder repeat interval"; defaultValue: 10; minimum: 1; maximum: 60; unit: "min" }
+    SliderSetting { visible: root.currentTab === 1; settingKey: "maximumAutomaticRepeats"; label: "Maximum automatic repeats"; defaultValue: 3; minimum: 0; maximum: 10 }
+    ToggleSetting { visible: root.currentTab === 1; settingKey: "actionableNotifications"; label: "Actionable notifications"; description: "Falls back to ordinary notifications when unsupported"; defaultValue: true }
+    SliderSetting { visible: root.currentTab === 1; settingKey: "stalenessHours"; label: "Posture staleness"; description: "Ask again after a long pause or restart gap"; defaultValue: 12; minimum: 1; maximum: 48; unit: "h" }
+
+    ToggleSetting { visible: root.currentTab === 2; settingKey: "pauseWhileIdle"; label: "Pause while idle"; description: "Uses inhibitor-aware Wayland idle monitoring"; defaultValue: true }
+    SliderSetting { visible: root.currentTab === 2; settingKey: "idleThresholdSeconds"; label: "Idle threshold"; defaultValue: 300; minimum: 30; maximum: 3600; unit: "s" }
+    SliderSetting { visible: root.currentTab === 2; settingKey: "returnGraceSeconds"; label: "Return grace period"; defaultValue: 60; minimum: 0; maximum: 600; unit: "s" }
+    ToggleSetting { visible: root.currentTab === 2; settingKey: "countIdleTime"; label: "Count idle time in statistics"; description: "Off by default because posture is unknown while away"; defaultValue: false }
+
+    SliderSetting { visible: root.currentTab === 3; settingKey: "dayStartHour"; label: "Next day delay"; description: "Hours after midnight before daily statistics reset"; defaultValue: 0; minimum: 0; maximum: 12; unit: "h" }
+    StyledText {
+        visible: root.currentTab === 3
+        text: "Reset actions require a second click within five seconds."
         color: Theme.surfaceVariantText
         font.pixelSize: Theme.fontSizeSmall
     }
-    Row {
+    Flow {
+        visible: root.currentTab === 3
+        width: parent.width
         spacing: Theme.spacingS
         DankButton {
             text: root.armedReset === "resetSession" ? "Click again" : "Reset session"

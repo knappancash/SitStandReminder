@@ -49,6 +49,7 @@ The plugin settings let you change:
 - Notification repeats and return grace period
 - Idle detection and whether idle time counts toward today's totals
 - The daily standing target
+- When the next statistics day starts, up to 12 hours after midnight
 - Session, daily-statistics, and full-state resets
 
 ## Optional IPC

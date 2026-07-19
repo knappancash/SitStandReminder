@@ -62,6 +62,7 @@ PluginComponent {
     readonly property int idleThresholdSeconds: settingInt("idleThresholdSeconds", 300, 30, 3600)
     readonly property bool countIdleTime: pluginData.countIdleTime ?? false
     readonly property int stalenessHours: settingInt("stalenessHours", 12, 1, 48)
+    readonly property int dayStartHour: settingInt("dayStartHour", 0, 0, 12)
 
     function settingInt(key, fallback, minimum, maximum) {
         return Math.round(SitStandMath.clampNumber(pluginData[key], fallback, minimum, maximum));
@@ -165,12 +166,12 @@ PluginComponent {
             return;
 
         const now = Date.now();
-        const today = SitStandMath.dateKey(now);
+        const today = SitStandMath.dateKey(now, dayStartHour);
         ensureStateWriter();
         const saved = pluginService.loadPluginState(pluginId, "runtime", {});
         const state = saved && typeof saved === "object" ? saved : {};
         const savedUpdateAt = finite(state.lastStateUpdateAt, 0);
-        const lastUpdateDate = savedUpdateAt > 0 ? SitStandMath.dateKey(savedUpdateAt) : "";
+        const lastUpdateDate = savedUpdateAt > 0 ? SitStandMath.dateKey(savedUpdateAt, dayStartHour) : "";
         const hasTodayPosture = SitStandMath.hasCurrentDayPosture(state.currentDate, lastUpdateDate, today, state.posture);
         remindersEnabled = configuredEnabled;
         posture = hasTodayPosture ? state.posture : "sitting";
@@ -187,6 +188,7 @@ PluginComponent {
         todaySittingSeconds = Math.max(0, finite(state.todaySittingSeconds, 0));
         todayStandingSeconds = Math.max(0, finite(state.todayStandingSeconds, 0));
         dailyHistory = SitStandMath.normalizeHistory(state.dailyHistoryJson ?? state.dailyHistory, historyDays);
+        restoreHistoryDay(currentDate);
         lastStateUpdateAt = finite(state.lastStateUpdateAt, now);
         const persistedUpdateAt = lastStateUpdateAt;
         disabledAt = finite(state.disabledAt, 0);
@@ -294,21 +296,29 @@ PluginComponent {
             dailyHistory = SitStandMath.recordDay(dailyHistory, currentDate, todaySittingSeconds, todayStandingSeconds, historyDays);
     }
 
+    function restoreHistoryDay(date) {
+        const restored = SitStandMath.takeHistoryDay(dailyHistory, date);
+        dailyHistory = restored.history;
+        todaySittingSeconds += restored.sittingSeconds;
+        todayStandingSeconds += restored.standingSeconds;
+    }
+
     function accountTo(now) {
         if (!lastStateUpdateAt || lastStateUpdateAt > now)
             lastStateUpdateAt = now;
 
-        const today = SitStandMath.dateKey(now);
+        const today = SitStandMath.dateKey(now, dayStartHour);
         let start = lastStateUpdateAt;
         const shouldCount = remindersEnabled && posture !== "unknown" && (!isIdle || countIdleTime);
         if (currentDate !== today) {
-            const split = SitStandMath.splitAtDayBoundary(start, now);
+            const split = SitStandMath.splitAtDayBoundary(start, now, dayStartHour);
             if (shouldCount)
                 addPostureSeconds(split.previousSeconds);
             archiveCurrentDay();
             currentDate = today;
             todaySittingSeconds = 0;
             todayStandingSeconds = 0;
+            restoreHistoryDay(today);
             if (shouldCount)
                 addPostureSeconds(split.currentSeconds);
             lastStateUpdateAt = now;
@@ -518,7 +528,7 @@ PluginComponent {
         const now = Date.now();
         accountTo(now);
         clearPostureUndo();
-        currentDate = SitStandMath.dateKey(now);
+        currentDate = SitStandMath.dateKey(now, dayStartHour);
         todaySittingSeconds = 0;
         todayStandingSeconds = 0;
         lastStateUpdateAt = now;
@@ -538,7 +548,7 @@ PluginComponent {
 
     function resetAll() {
         const now = Date.now();
-        currentDate = SitStandMath.dateKey(now);
+        currentDate = SitStandMath.dateKey(now, dayStartHour);
         todaySittingSeconds = 0;
         todayStandingSeconds = 0;
         dailyHistory = [];

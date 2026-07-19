@@ -3,7 +3,7 @@
     "id": "sitStandReminder",
     "name": "Sit/Stand Reminder",
     "description": "Simple reminders to alternate between sitting and standing",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "author": "Justus",
     "license": "MIT",
     "icon": "desk",

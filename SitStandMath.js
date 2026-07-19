@@ -5,24 +5,27 @@ function clampNumber(value, fallback, minimum, maximum) {
     return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback;
 }
 
-function dateKey(timestamp) {
+function dateKey(timestamp, dayStartHour) {
     const date = new Date(timestamp);
+    date.setHours(date.getHours() - clampNumber(dayStartHour, 0, 0, 12));
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return date.getFullYear() + "-" + month + "-" + day;
 }
 
-function startOfDay(timestamp) {
+function startOfDay(timestamp, dayStartHour) {
     const date = new Date(timestamp);
-    date.setHours(0, 0, 0, 0);
+    date.setHours(clampNumber(dayStartHour, 0, 0, 12), 0, 0, 0);
+    if (date.getTime() > timestamp)
+        date.setDate(date.getDate() - 1);
     return date.getTime();
 }
 
-function splitAtDayBoundary(start, end) {
-    const midnight = startOfDay(end);
+function splitAtDayBoundary(start, end, dayStartHour) {
+    const boundary = startOfDay(end, dayStartHour);
     return {
-        previousSeconds: Math.max(0, midnight - start) / 1000,
-        currentSeconds: Math.max(0, end - Math.max(start, midnight)) / 1000
+        previousSeconds: Math.max(0, boundary - start) / 1000,
+        currentSeconds: Math.max(0, end - Math.max(start, boundary)) / 1000
     };
 }
 
@@ -90,6 +93,18 @@ function recordDay(history, date, sittingSeconds, standingSeconds, maximumDays) 
         sittingSeconds: sittingSeconds,
         standingSeconds: standingSeconds
     }]), maximumDays);
+}
+
+function takeHistoryDay(history, date) {
+    const days = Array.isArray(history) ? history : [];
+    const index = days.findIndex(day => day.date === date);
+    if (index < 0)
+        return { history: days, sittingSeconds: 0, standingSeconds: 0 };
+    return {
+        history: days.slice(0, index).concat(days.slice(index + 1)),
+        sittingSeconds: days[index].sittingSeconds,
+        standingSeconds: days[index].standingSeconds
+    };
 }
 
 function historyChart(history, maximumDays) {

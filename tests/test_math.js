@@ -9,8 +9,12 @@ const assert = require("assert");
 assert.equal(math.clampNumber("bad", 30, 1, 60), 30);
 assert.equal(math.clampNumber(99, 30, 1, 60), 60);
 assert.equal(math.dateKey(new Date(2026, 0, 2).getTime()), "2026-01-02");
+assert.equal(math.dateKey(new Date(2026, 0, 2, 3, 59).getTime(), 4), "2026-01-01");
+assert.equal(math.dateKey(new Date(2026, 0, 2, 4).getTime(), 4), "2026-01-02");
 const split = math.splitAtDayBoundary(new Date(2026, 0, 1, 23, 59).getTime(), new Date(2026, 0, 2, 0, 1).getTime());
 assert.deepEqual(JSON.parse(JSON.stringify(split)), { previousSeconds: 60, currentSeconds: 60 });
+const delayedSplit = math.splitAtDayBoundary(new Date(2026, 0, 2, 3, 59).getTime(), new Date(2026, 0, 2, 4, 1).getTime(), 4);
+assert.deepEqual(JSON.parse(JSON.stringify(delayedSplit)), { previousSeconds: 60, currentSeconds: 60 });
 assert.equal(math.ceilToMinute(899), 900);
 assert.equal(math.ceilToMinute(900), 900);
 assert.equal(math.ceilToMinute(-1), 0);
@@ -45,6 +49,12 @@ assert.deepEqual(JSON.parse(JSON.stringify(history)), [
     { date: "2026-01-01", sittingSeconds: 200, standingSeconds: 40 },
     { date: "2026-01-02", sittingSeconds: 0, standingSeconds: 30 }
 ]);
+const restored = math.takeHistoryDay(history, "2026-01-01");
+assert.deepEqual(JSON.parse(JSON.stringify(restored)), {
+    history: [{ date: "2026-01-02", sittingSeconds: 0, standingSeconds: 30 }],
+    sittingSeconds: 200,
+    standingSeconds: 40
+});
 assert.equal(math.normalizeHistory("not json", 30).length, 0);
 assert.equal(math.normalizeHistory(JSON.stringify(history), 30).length, 2);
 const chart = math.historyChart(history, 5);
