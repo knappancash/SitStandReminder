@@ -27,48 +27,19 @@ PluginComponent {
         const current = postureLabel(postureState.value) + " for " + formatDuration(postureElapsedState.value);
         if (pendingTargetState.value)
             return current + " • " + postureLabel(pendingTargetState.value) + (snoozeUntilState.value > Date.now() ? " snoozed" : " overdue");
-        return current + " • " + postureLabel(postureState.value === "sitting" ? "standing" : "sitting") + " in " + formatDuration(SitStandMath.ceilToMinute(remainingSecondsState.value));
+        return current + " • " + postureLabel(postureState.value === "sitting" ? "standing" : "sitting") + " in " + formatDuration(Math.ceil(Math.max(0, Number(remainingSecondsState.value) || 0) / 60) * 60);
     }
     readonly property string todayTotalsText: "Sitting " + formatDuration(todaySittingState.value) + "  •  Standing " + formatDuration(todayStandingState.value)
     readonly property string standingTargetText: "Standing target: " + Math.min(100, Math.round(todayStandingState.value * 100 / Math.max(1, targetStandingState.value))) + "% (" + formatDuration(targetStandingState.value).replace(" 0m", "") + ")"
-    readonly property var recentHistory: {
-        try {
-            const history = JSON.parse(dailyHistoryJsonState.value);
-            return Array.isArray(history) ? history.slice(-30) : [];
-        } catch (error) {
-            return [];
-        }
-    }
+    readonly property var recentHistory: Array.isArray(dailyHistoryState.value) ? dailyHistoryState.value.slice(-30) : []
     readonly property var historyChart: SitStandMath.historyChart(recentHistory, historyRange)
 
-    function invoke(operation, argument) {
-        const daemon = pluginService && pluginService.pluginDaemonInstances ? pluginService.pluginDaemonInstances[pluginId] : null;
-        if (daemon) {
-            if (operation === "toggle") {
-                daemon.setEnabled(!daemon.remindersEnabled);
-                return;
-            }
-            if (operation === "reset") {
-                daemon.resetCurrentInterval();
-                return;
-            }
-            if (operation === "sit") {
-                daemon.confirmPosture("sitting");
-                return;
-            }
-            if (operation === "stand") {
-                daemon.confirmPosture("standing");
-                return;
-            }
-        }
-        const command = ["dms", "ipc", "call", "sitStandReminder", operation];
-        if (argument !== undefined)
-            command.push(String(argument));
-        Quickshell.execDetached(command);
+    function invoke(operation) {
+        Quickshell.execDetached(["dms", "ipc", "call", "sitStandReminder", operation]);
     }
 
     function cycleHistoryRange() {
-        historyRange = SitStandMath.nextHistoryRange(historyRange);
+        historyRange = historyRange === 7 ? 14 : (historyRange === 14 ? 30 : 7);
     }
 
     function formatDuration(seconds) {
@@ -96,7 +67,7 @@ PluginComponent {
             return "pause";
         if (postureState.value === "unknown")
             return "desk";
-        if (overdueState.value)
+        if (pendingTargetState.value)
             return "warning";
         return postureState.value === "sitting" ? "chair" : "accessibility_new";
     }
@@ -104,7 +75,7 @@ PluginComponent {
     function iconColor() {
         if (!enabledState.value || idleState.value || returnGraceState.value)
             return Theme.surfaceVariantText;
-        if (overdueState.value)
+        if (pendingTargetState.value)
             return Theme.warning;
         return Theme.primary;
     }
@@ -129,7 +100,7 @@ PluginComponent {
     ccWidgetIsActive: enabledState.value && postureState.value === "standing"
     onCcWidgetToggled: {
         if (enabledState.value)
-            invoke(SitStandMath.postureToggleOperation(postureState.value));
+            invoke(postureState.value === "sitting" ? "stand" : "sit");
     }
 
     horizontalBarPill: Component {
@@ -476,14 +447,13 @@ PluginComponent {
     PluginGlobalVar { id: remainingSecondsState; varName: "remainingSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: postureElapsedState; varName: "postureElapsedSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: pendingTargetState; varName: "pendingTarget"; defaultValue: "" }
-    PluginGlobalVar { id: overdueState; varName: "isOverdue"; defaultValue: false }
     PluginGlobalVar { id: snoozeUntilState; varName: "snoozeUntil"; defaultValue: 0 }
     PluginGlobalVar { id: idleState; varName: "isIdle"; defaultValue: false }
     PluginGlobalVar { id: returnGraceState; varName: "isInReturnGrace"; defaultValue: false }
     PluginGlobalVar { id: todaySittingState; varName: "todaySittingSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: todayStandingState; varName: "todayStandingSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: standingTargetReachedState; varName: "standingTargetReached"; defaultValue: false }
-    PluginGlobalVar { id: dailyHistoryJsonState; varName: "dailyHistoryJson"; defaultValue: "[]" }
+    PluginGlobalVar { id: dailyHistoryState; varName: "dailyHistory"; defaultValue: [] }
     PluginGlobalVar { id: targetStandingState; varName: "dailyStandingTargetSeconds"; defaultValue: 7200 }
     PluginGlobalVar { id: statusTextState; varName: "statusText"; defaultValue: "Set current posture" }
 }

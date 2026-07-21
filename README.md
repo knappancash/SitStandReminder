@@ -35,7 +35,7 @@ Requires DMS 1.5 or newer and `notify-send` from `libnotify`.
 1. Open the widget and confirm whether you are sitting or standing.
 2. When a transition notification appears, change posture and confirm it from the notification or widget.
 3. The notification stays visible until you confirm, snooze, or close it. Closing it leaves the transition overdue.
-4. Pause reminders when you do not want them. Enabling them again resumes the same posture and interval where they stopped, falling back to sitting only when no posture is known.
+4. Pause reminders when you do not want them. Enabling them again resumes the same posture and interval where they stopped; after the configured staleness limit, it asks for your posture again.
 
 On startup, today's saved posture is restored. If no posture has been recorded for the current day, the plugin starts with sitting.
 

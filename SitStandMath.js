@@ -29,20 +29,20 @@ function splitAtDayBoundary(start, end, dayStartHour) {
     };
 }
 
-function ceilToMinute(seconds) {
-    return Math.ceil(Math.max(0, Number(seconds) || 0) / 60) * 60;
+function pausableDuration(duration, remindersEnabled, posture) {
+    return remindersEnabled && (posture === "sitting" || posture === "standing") ? Math.max(0, Number(duration) || 0) : 0;
 }
 
-function resumePosture(previousPosture) {
-    return previousPosture === "standing" ? "standing" : "sitting";
+function elapsedSince(timestamp, now) {
+    return timestamp > 0 ? Math.max(0, now - timestamp) : 0;
 }
 
-function postureToggleOperation(currentPosture) {
-    return currentPosture === "sitting" ? "stand" : "sit";
+function isStalePause(duration, stalenessHours) {
+    return duration > stalenessHours * 60 * 60 * 1000;
 }
 
-function shouldUndoPostureChange(previousPosture, requestedPosture, undoUntil, now) {
-    return (previousPosture === "sitting" || previousPosture === "standing") && requestedPosture === previousPosture && now <= undoUntil;
+function reminderRepeatDue(lastNotificationAt, now, repeatMillis, reminderCount, maximumRepeats) {
+    return lastNotificationAt <= 0 || (now - lastNotificationAt >= repeatMillis && reminderCount < maximumRepeats);
 }
 
 function shiftTimestamp(timestamp, duration) {
@@ -55,6 +55,10 @@ function shiftClockTimestamp(timestamp, clockDelta) {
 
 function hasCurrentDayPosture(savedDate, lastUpdateDate, currentDate, posture) {
     return (savedDate === currentDate || lastUpdateDate === currentDate) && (posture === "sitting" || posture === "standing");
+}
+
+function hasCurrentDayUnknown(savedDate, currentDate, posture) {
+    return savedDate === currentDate && posture === "unknown";
 }
 
 function standingTargetReached(standingSeconds, targetSeconds) {
@@ -129,10 +133,6 @@ function historyChart(history, maximumDays) {
         }
     }
     return chart;
-}
-
-function nextHistoryRange(range) {
-    return range === 7 ? 14 : (range === 14 ? 30 : 7);
 }
 
 function dateFormatWithoutYear(format) {
