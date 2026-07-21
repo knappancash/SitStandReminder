@@ -1,5 +1,7 @@
 # Sit/Stand Reminder
 
+[![CI status](https://ci.codeberg.org/api/badges/17672/status.svg?branch=main)](https://ci.codeberg.org/repos/17672)
+
 A lightweight DankMaterialShell plugin that reminds you to alternate between sitting and standing. Posture changes come from your confirmations, with sitting as the fresh-day fallback; keyboard and mouse activity are never treated as posture detection.
 
 The canonical repository is hosted on [Codeberg](https://codeberg.org/knappancash/SitStandReminder). The [GitHub repository](https://github.com/knappancash/SitStandReminder) is a mirror.
