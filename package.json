@@ -1,0 +1,11 @@
+{
+  "name": "sit-stand-reminder",
+  "private": true,
+  "scripts": {
+    "test": "node tests/test_math.js && node tests/fuzz_math.js",
+    "fuzz": "mkdir -p .fuzz-corpus && jazzer tests/fuzz_target.js --sync -i SitStandMath.js --disableBugDetectors='.*' .fuzz-corpus tests/fuzz-seeds -- -max_len=4096 -max_total_time=30"
+  },
+  "devDependencies": {
+    "@jazzer.js/core": "4.0.0"
+  }
+}

@@ -1,5 +1,3 @@
-.pragma library
-
 function clampNumber(value, fallback, minimum, maximum) {
     const number = Number(value);
     return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback;
@@ -79,12 +77,13 @@ function normalizeHistory(value, maximumDays) {
     value.forEach(entry => {
         if (!entry || !/^\d{4}-\d{2}-\d{2}$/.test(entry.date))
             return;
-        const sittingSeconds = Number(entry.sittingSeconds);
-        const standingSeconds = Number(entry.standingSeconds);
+        const date = new Date(entry.date + "T12:00:00");
+        if (!Number.isFinite(date.getTime()) || dateKey(date.getTime()) !== entry.date)
+            return;
         days[entry.date] = {
             date: entry.date,
-            sittingSeconds: Number.isFinite(sittingSeconds) ? Math.max(0, Math.floor(sittingSeconds)) : 0,
-            standingSeconds: Number.isFinite(standingSeconds) ? Math.max(0, Math.floor(standingSeconds)) : 0
+            sittingSeconds: Math.floor(clampNumber(entry.sittingSeconds, 0, 0, Number.MAX_SAFE_INTEGER)),
+            standingSeconds: Math.floor(clampNumber(entry.standingSeconds, 0, 0, Number.MAX_SAFE_INTEGER))
         };
     });
     const limit = Math.max(1, Math.floor(Number(maximumDays) || 30));
@@ -151,3 +150,26 @@ function nearestChartPoint(sitting, standing, maximum, width, height, x, y, radi
     }));
     return nearest;
 }
+
+if (typeof module !== "undefined")
+    module.exports = {
+        clampNumber,
+        dateKey,
+        startOfDay,
+        splitAtDayBoundary,
+        pausableDuration,
+        elapsedSince,
+        isStalePause,
+        reminderRepeatDue,
+        shiftTimestamp,
+        shiftClockTimestamp,
+        hasCurrentDayPosture,
+        hasCurrentDayUnknown,
+        standingTargetReached,
+        normalizeHistory,
+        recordDay,
+        takeHistoryDay,
+        historyChart,
+        dateFormatWithoutYear,
+        nearestChartPoint
+    };

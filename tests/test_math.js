@@ -1,10 +1,4 @@
-const fs = require("fs");
-const vm = require("vm");
-const source = fs.readFileSync(require("path").join(__dirname, "..", "SitStandMath.js"), "utf8").replace(/^\.pragma library\s*/, "");
-const math = {};
-vm.createContext(math);
-vm.runInContext(source, math);
-
+const math = require("../SitStandMath.js");
 const assert = require("assert");
 assert.equal(math.clampNumber("bad", 30, 1, 60), 30);
 assert.equal(math.clampNumber(99, 30, 1, 60), 60);
