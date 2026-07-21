@@ -1,0 +1,9 @@
+steps:
+  - name: test
+    image: node:22-slim
+    commands:
+      - npm ci
+      - npm test
+
+when:
+  - event: [push, pull_request]
