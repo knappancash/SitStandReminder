@@ -3,6 +3,7 @@ import Quickshell
 import qs.Common
 import qs.Services
 import qs.Widgets
+import qs.DCommon.Widgets
 import qs.Modules.Plugins
 import "SitStandMath.js" as SitStandMath
 
@@ -106,7 +107,7 @@ PluginComponent {
     horizontalBarPill: Component {
         Row {
             spacing: Theme.spacingXS
-            DankIcon {
+            DIcon {
                 name: root.iconName()
                 size: root.iconSize
                 color: root.iconColor()
@@ -125,14 +126,14 @@ PluginComponent {
     verticalBarPill: Component {
         Column {
             spacing: Theme.spacingXS
-            DankIcon {
+            DIcon {
                 name: root.iconName()
                 size: root.iconSize
                 color: root.iconColor()
                 anchors.horizontalCenter: parent.horizontalCenter
             }
             StyledText {
-                text: root.standingTargetReachedState.value ? "\u2713" : (root.pendingTargetState.value ? "!" : (root.postureState.value === "unknown" ? "?" : Math.max(0, Math.ceil(root.remainingSecondsState.value / 60))))
+                text: standingTargetReachedState.value ? "\u2713" : (pendingTargetState.value ? "!" : (postureState.value === "unknown" ? "?" : Math.max(0, Math.ceil(remainingSecondsState.value / 60))))
                 font.pixelSize: Theme.fontSizeSmall
                 color: root.iconColor()
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -147,6 +148,13 @@ PluginComponent {
             detailsText: root.popoutStatusText
             showCloseButton: false
 
+            // DMS sizes bar popouts from content but uses ccDetailHeight as-is.
+            Binding {
+                target: root
+                property: "ccDetailHeight"
+                value: popout.implicitHeight
+            }
+
             Column {
                 width: parent.width
                 spacing: Theme.spacingS
@@ -157,17 +165,17 @@ PluginComponent {
                     width: parent.width - Theme.spacingM * 2
                     spacing: Theme.spacingS
                     property real buttonWidth: (width - spacing) / 2
-                    DankButton {
+                    DButton {
                         width: enableRow.buttonWidth
                         text: root.reminderToggleText
                         iconName: root.reminderToggleIcon
                         onClicked: root.invoke("toggle")
                     }
-                    DankButton {
+                    DButton {
                         width: enableRow.buttonWidth
                         text: "Reset interval"
                         iconName: "refresh"
-                        enabled: root.enabledState.value && root.postureState.value !== "unknown"
+                        enabled: enabledState.value && postureState.value !== "unknown"
                         onClicked: root.invoke("reset")
                     }
                 }
@@ -184,18 +192,18 @@ PluginComponent {
                     width: parent.width - Theme.spacingM * 2
                     spacing: Theme.spacingS
                     property real buttonWidth: (width - spacing) / 2
-                    DankButton {
+                    DButton {
                         width: postureButtons.buttonWidth
                         text: "I'm sitting"
                         iconName: "chair"
-                        enabled: root.enabledState.value
+                        enabled: enabledState.value
                         onClicked: root.invoke("sit")
                     }
-                    DankButton {
+                    DButton {
                         width: postureButtons.buttonWidth
                         text: "I'm standing"
                         iconName: "accessibility_new"
-                        enabled: root.enabledState.value
+                        enabled: enabledState.value
                         onClicked: root.invoke("stand")
                     }
                 }
@@ -242,6 +250,8 @@ PluginComponent {
                     height: historyColumn.implicitHeight + Theme.spacingM + Theme.spacingS
                     radius: Theme.cornerRadius
                     color: Theme.surfaceContainerHigh
+                    border.width: historyArea.activeFocus ? 2 : 0
+                    border.color: Theme.primary
                     Column {
                         id: historyColumn
                         anchors.fill: parent
@@ -307,9 +317,15 @@ PluginComponent {
                             }
                         }
                         Item {
+                            id: historyArea
                             width: historyColumn.width
                             height: root.recentHistory.length > 0 ? 130 : 0
                             visible: root.recentHistory.length > 0
+                            activeFocusOnTab: true
+                            Keys.onReturnPressed: root.cycleHistoryRange()
+                            Keys.onEnterPressed: root.cycleHistoryRange()
+                            Keys.onSpacePressed: root.cycleHistoryRange()
+                            Accessible.role: Accessible.Button
                             Accessible.name: root.historyChart.days.map(day => root.formatHistoryDate(day.date) + ", sitting " + root.formatDuration(day.sittingSeconds) + ", standing " + root.formatDuration(day.standingSeconds)).join("; ")
 
                             Canvas {

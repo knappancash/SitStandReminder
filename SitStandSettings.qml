@@ -1,7 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.Common
-import qs.Widgets
+import qs.DCommon.Widgets
 import qs.Modules.Plugins
 
 PluginSettings {
@@ -36,7 +36,7 @@ PluginSettings {
         width: parent.width
         height: settingsTabs.height + Theme.spacingM
 
-        DankTabBar {
+        DTabBar {
             id: settingsTabs
             width: parent.width
             tabHeight: 44
@@ -74,15 +74,15 @@ PluginSettings {
         visible: root.currentTab === 3
         width: parent.width
         spacing: Theme.spacingS
-        DankButton {
+        DButton {
             text: root.armedReset === "resetSession" ? "Click again" : "Reset session"
             onClicked: root.confirmReset("resetSession")
         }
-        DankButton {
+        DButton {
             text: root.armedReset === "resetToday" ? "Click again" : "Reset today"
             onClicked: root.confirmReset("resetToday")
         }
-        DankButton {
+        DButton {
             text: root.armedReset === "resetAll" ? "Click again" : "Reset all state"
             onClicked: root.confirmReset("resetAll")
         }

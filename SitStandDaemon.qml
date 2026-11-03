@@ -108,7 +108,6 @@ PluginComponent {
         const now = Date.now();
         const today = SitStandMath.dateKey(now, dayStartHour);
         dismissPluginNotifications();
-        ensureStateWriter();
         const saved = pluginService.loadPluginState(pluginId, "runtime", {});
         const state = saved && typeof saved === "object" ? saved : {};
         const savedUpdateAt = finite(state.lastStateUpdateAt, 0);
@@ -207,17 +206,9 @@ PluginComponent {
         };
     }
 
-    function ensureStateWriter() {
-        // DMS 1.5.1 drops its FileView on hot reload but keeps the cache marked loaded.
-        if (pluginService && pluginService._stateWriters && !pluginService._stateWriters[pluginId] && pluginService._loadStateFromDisk)
-            pluginService._loadStateFromDisk(pluginId);
-    }
-
     function persist() {
-        if (initialized && pluginService) {
-            ensureStateWriter();
+        if (initialized && pluginService)
             pluginService.savePluginState(pluginId, "runtime", stateObject());
-        }
     }
 
     function addPostureSeconds(seconds) {

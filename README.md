@@ -25,12 +25,12 @@ Install and enable **Sit/Stand Reminder** from the DMS Plugins page, then add it
 For local development, link this checkout and rescan plugins:
 
 ```sh
-mkdir -p ~/.config/DankMaterialShell/plugins
-ln -s "$PWD" ~/.config/DankMaterialShell/plugins/sitStandReminder
+mkdir -p ~/.config/dms/plugins
+ln -s "$PWD" ~/.config/dms/plugins/sitStandReminder
 dms ipc call plugin-scan scan
 ```
 
-Requires DMS 1.5 or newer and `notify-send` from `libnotify`.
+Requires DMS 2.0 or newer and `notify-send` from `libnotify`.
 
 ## How to use it
 
