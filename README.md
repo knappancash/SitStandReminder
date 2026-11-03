@@ -60,13 +60,19 @@ These commands are useful for compositor keybindings:
 
 ```sh
 dms ipc call sitStandReminder toggle
+dms ipc call sitStandReminder enable
+dms ipc call sitStandReminder disable
 dms ipc call sitStandReminder sit
 dms ipc call sitStandReminder stand
 dms ipc call sitStandReminder snooze 10
+dms ipc call sitStandReminder dismiss
+dms ipc call sitStandReminder remindNow
 dms ipc call sitStandReminder reset
 dms ipc call sitStandReminder status
 dms ipc call sitStandReminder history
 ```
+
+`reset` restarts the current interval. `resetSession`, `resetToday`, and `resetAll` match the reset buttons in the plugin settings.
 
 The popout shows today plus the seven most recent completed days by default; selecting the graph cycles through 14 and 30 days. `history` returns all retained completed days as JSON. Only daily totals are stored; there is no event or activity log.
 

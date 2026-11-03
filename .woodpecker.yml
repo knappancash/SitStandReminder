@@ -2,8 +2,9 @@ steps:
   - name: test
     image: node:22-slim
     commands:
-      - npm ci
       - npm test
+      - TZ=America/Havana node tests/fuzz_math.js
+      - TZ=Pacific/Apia node tests/fuzz_math.js
 
 when:
   - event: [push, pull_request]

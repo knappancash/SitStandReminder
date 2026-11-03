@@ -148,7 +148,7 @@ PluginComponent {
             lastStateUpdateAt = now;
         }
 
-        const savedIdleStart = state.isIdle ? finite(state.idleStartedAt, now) : 0;
+        const savedIdleStart = hasTodayPosture && state.isIdle ? finite(state.idleStartedAt, now) : 0;
         if (savedIdleStart > 0 && now > savedIdleStart && pauseDeadline(now - savedIdleStart)) {
             graceUntil = now + returnGraceSeconds * 1000;
             lastStateUpdateAt = now;
@@ -161,7 +161,7 @@ PluginComponent {
         else if (posture !== "unknown") {
             if (dueAt <= 0)
                 dueAt = postureStartedAt + durationFor(posture) + pausedMillis;
-            if (!state.isIdle && now - persistedUpdateAt > idleThresholdSeconds * 1000 && pauseDeadline(now - persistedUpdateAt)) {
+            if (hasTodayPosture && !state.isIdle && now - persistedUpdateAt > idleThresholdSeconds * 1000 && pauseDeadline(now - persistedUpdateAt)) {
                 // ponytail: a long offline gap is treated as away; add logind suspend signals only if that distinction matters.
                 graceUntil = now + returnGraceSeconds * 1000;
                 lastStateUpdateAt = now;
@@ -314,11 +314,13 @@ PluginComponent {
             disabledAt = SitStandMath.shiftClockTimestamp(disabledAt, gap);
             idleStartedAt = SitStandMath.shiftClockTimestamp(idleStartedAt, gap);
             lastStateUpdateAt = now;
-        } else if (gap > idleThresholdSeconds * 1000 && !isIdle) {
+        } else if (gap > idleThresholdSeconds * 1000) {
             accountTo(lastTickAt);
             lastStateUpdateAt = now;
             accountTo(now);
-            if (SitStandMath.isStalePause(gap, stalenessHours)) {
+            if (isIdle) {
+                // The idle return applies the pause.
+            } else if (SitStandMath.isStalePause(gap, stalenessHours)) {
                 makeUnknown(now);
             } else {
                 if (pauseDeadline(gap))
@@ -362,8 +364,8 @@ PluginComponent {
                 if (isRepeat)
                     reminderCount++;
                 lastNotificationAt = now;
+                persist();
             }
-            persist();
         }
     }
 
@@ -545,14 +547,8 @@ PluginComponent {
             return;
         }
         dueAt = postureStartedAt + durationFor(posture) + pausedMillis;
-        if (pendingTarget) {
+        if (pendingTarget && now < dueAt)
             clearPending();
-            if (now >= dueAt) {
-                pendingTarget = opposite(posture);
-                if (sendDeadlineNotification())
-                    lastNotificationAt = now;
-            }
-        }
         publish(now);
         persist();
     }
@@ -849,6 +845,9 @@ PluginComponent {
         if (initialized) {
             accountTo(Date.now());
             persist();
+            // DMS debounces state writes; its timer may never fire during shutdown.
+            if (pluginService && pluginService._flushDirtyStates)
+                pluginService._flushDirtyStates();
         }
         closeNotification();
     }
