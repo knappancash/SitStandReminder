@@ -12,7 +12,8 @@ PluginComponent {
     id: root
 
     readonly property int minute: 60000
-    readonly property int historyDays: 30
+    // Effectively all time, but bounded.
+    readonly property int historyDays: 3650
     property bool initialized: false
     property bool remindersEnabled: true
     property string posture: "unknown"
@@ -36,6 +37,7 @@ PluginComponent {
     property int appliedSittingMinutes: 30
     property int appliedStandingMinutes: 15
     property bool targetNotificationsSuppressed: false
+    property string snoozedDate: ""
 
     property bool notifyAvailable: false
     property bool notificationActionsSupported: false
@@ -101,6 +103,18 @@ PluginComponent {
         return reached;
     }
 
+    function snoozedForToday() {
+        return snoozedDate !== "" && snoozedDate === currentDate;
+    }
+
+    function restartInterval(now) {
+        postureStartedAt = now;
+        pausedMillis = 0;
+        dueAt = now + durationFor(posture);
+        clearPending();
+        graceUntil = 0;
+    }
+
     function tryInitialize() {
         if (initialized || !pluginService || !pluginId)
             return;
@@ -126,6 +140,7 @@ PluginComponent {
             lastNotificationAt = 0;
         reminderCount = Math.max(0, Math.round(finite(state.reminderCount, 0)));
         currentDate = typeof state.currentDate === "string" ? state.currentDate : today;
+        snoozedDate = typeof state.snoozedDate === "string" ? state.snoozedDate : "";
         todaySittingSeconds = Math.max(0, finite(state.todaySittingSeconds, 0));
         todayStandingSeconds = Math.max(0, finite(state.todayStandingSeconds, 0));
         dailyHistory = SitStandMath.normalizeHistory(state.dailyHistory ?? state.dailyHistoryJson, historyDays);
@@ -201,6 +216,7 @@ PluginComponent {
             isIdle: isIdle,
             idleStartedAt: idleStartedAt,
             disabledAt: disabledAt,
+            snoozedDate: snoozedDate,
             appliedSittingMinutes: appliedSittingMinutes,
             appliedStandingMinutes: appliedStandingMinutes
         };
@@ -325,6 +341,14 @@ PluginComponent {
     function evaluate(now) {
         if (!initialized || !remindersEnabled || posture === "unknown" || isIdle || now < graceUntil)
             return;
+        if (snoozedDate) {
+            if (snoozedDate === currentDate)
+                return;
+            // The day rolled over; start fresh instead of firing a long-overdue reminder.
+            snoozedDate = "";
+            restartInterval(now);
+            persist();
+        }
         if (updateTargetMode(now))
             return;
 
@@ -420,6 +444,32 @@ PluginComponent {
         return "Snoozed for " + minutes + " minutes";
     }
 
+    function snoozeToday() {
+        if (!remindersEnabled)
+            return "ERROR: reminders are disabled";
+        const now = Date.now();
+        accountTo(now);
+        snoozedDate = currentDate;
+        clearPending();
+        publish(now);
+        persist();
+        return "Reminders snoozed for today";
+    }
+
+    function resumeToday() {
+        if (!snoozedForToday())
+            return "ERROR: reminders are not snoozed";
+        const now = Date.now();
+        accountTo(now);
+        snoozedDate = "";
+        if (posture !== "unknown")
+            restartInterval(now);
+        lastStateUpdateAt = now;
+        publish(now);
+        persist();
+        return "Reminders resumed";
+    }
+
     function dismiss() {
         if (!remindersEnabled)
             return "ERROR: reminders are disabled";
@@ -476,6 +526,7 @@ PluginComponent {
         todaySittingSeconds = 0;
         todayStandingSeconds = 0;
         dailyHistory = [];
+        snoozedDate = "";
         makeUnknown(now);
         pluginService.clearPluginState(pluginId);
         publish(now);
@@ -505,11 +556,7 @@ PluginComponent {
                 makeUnknown(now);
             } else if (posture === "unknown") {
                 posture = "sitting";
-                postureStartedAt = now;
-                pausedMillis = 0;
-                dueAt = now + durationFor(posture);
-                clearPending();
-                graceUntil = 0;
+                restartInterval(now);
             } else {
                 pauseDeadline(disabledDuration);
             }
@@ -651,6 +698,8 @@ PluginComponent {
             return "Disabled";
         if (posture === "unknown")
             return "Set current posture";
+        if (snoozedForToday())
+            return "Snoozed for today";
         if (isIdle)
             return "Paused while away";
         if (now < graceUntil)
@@ -678,6 +727,7 @@ PluginComponent {
         setGlobal(globalRemainingSeconds, dueAt > 0 ? Math.ceil((dueAt - now) / 1000) : 0);
         setGlobal(globalPostureElapsedSeconds, elapsed);
         setGlobal(globalPendingTarget, pendingTarget);
+        setGlobal(globalSnoozedToday, snoozedForToday());
         setGlobal(globalSnoozeUntil, snoozeUntil);
         setGlobal(globalIsIdle, isIdle);
         setGlobal(globalIsInReturnGrace, now < graceUntil);
@@ -685,6 +735,7 @@ PluginComponent {
         setGlobal(globalTodayStandingSeconds, Math.floor(todayStandingSeconds));
         setGlobal(globalStandingTargetReached, standingTargetReached());
         setGlobal(globalDailyHistory, dailyHistory);
+        setGlobal(globalCurrentDate, currentDate);
         setGlobal(globalDailyStandingTargetSeconds, dailyStandingTargetMinutes * 60);
         setGlobal(globalStatusText, statusText(now));
     }
@@ -797,6 +848,9 @@ PluginComponent {
         function stand(): string { return root.confirmPosture("standing"); }
         function snooze(minutes: string): string { return root.snooze(minutes); }
         function dismiss(): string { return root.dismiss(); }
+        function snoozeToday(): string { return root.snoozeToday(); }
+        function resumeToday(): string { return root.resumeToday(); }
+        function toggleSnoozeToday(): string { return root.snoozedForToday() ? root.resumeToday() : root.snoozeToday(); }
         function reset(): string { return root.resetCurrentInterval(); }
         function remindNow(): string {
             if (!root.remindersEnabled || root.posture === "unknown")
@@ -804,6 +858,8 @@ PluginComponent {
             const now = Date.now();
             if (root.standingTargetReached())
                 return "ERROR: standing target already reached";
+            if (root.snoozedForToday())
+                return "ERROR: reminders are snoozed for today";
             if (root.isIdle || now < root.graceUntil)
                 return "ERROR: reminders are temporarily paused";
             root.clearPending();
@@ -822,12 +878,14 @@ PluginComponent {
     PluginGlobalVar { id: globalRemainingSeconds; varName: "remainingSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: globalPostureElapsedSeconds; varName: "postureElapsedSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: globalPendingTarget; varName: "pendingTarget"; defaultValue: "" }
+    PluginGlobalVar { id: globalSnoozedToday; varName: "snoozedToday"; defaultValue: false }
     PluginGlobalVar { id: globalSnoozeUntil; varName: "snoozeUntil"; defaultValue: 0 }
     PluginGlobalVar { id: globalIsIdle; varName: "isIdle"; defaultValue: false }
     PluginGlobalVar { id: globalIsInReturnGrace; varName: "isInReturnGrace"; defaultValue: false }
     PluginGlobalVar { id: globalTodaySittingSeconds; varName: "todaySittingSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: globalTodayStandingSeconds; varName: "todayStandingSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: globalStandingTargetReached; varName: "standingTargetReached"; defaultValue: false }
+    PluginGlobalVar { id: globalCurrentDate; varName: "currentDate"; defaultValue: "" }
     PluginGlobalVar { id: globalDailyHistory; varName: "dailyHistory"; defaultValue: [] }
     PluginGlobalVar { id: globalDailyStandingTargetSeconds; varName: "dailyStandingTargetSeconds"; defaultValue: 7200 }
     PluginGlobalVar { id: globalStatusText; varName: "statusText"; defaultValue: "Set current posture" }

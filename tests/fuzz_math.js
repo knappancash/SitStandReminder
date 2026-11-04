@@ -45,7 +45,7 @@ for (let iteration = 0; iteration < 5000; iteration++) {
         assert(Number.isSafeInteger(day.standingSeconds) && day.standingSeconds >= 0);
     });
 
-    const chart = math.historyChart(history, integer(1, 30));
+    const chart = math.historyChart(history, integer(0, 30));
     assert(Number.isFinite(chart.maximum));
     assert(Number.isFinite(chart.sittingAverage));
     assert(Number.isFinite(chart.standingAverage));

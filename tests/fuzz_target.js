@@ -38,7 +38,7 @@ module.exports.fuzz = function (input) {
     });
     assert.deepEqual(math.normalizeHistory(JSON.stringify(history), 30), history);
 
-    const chart = math.historyChart(history, data.consumeIntegralInRange(1, 30));
+    const chart = math.historyChart(history, data.consumeIntegralInRange(0, 30));
     assert(Number.isFinite(chart.maximum));
     assert(Number.isFinite(chart.sittingAverage));
     assert(Number.isFinite(chart.standingAverage));

@@ -14,7 +14,7 @@ The canonical repository is hosted on [Codeberg](https://codeberg.org/knappancas
 - Persistent transition notifications, with actions and one configurable snooze option when supported
 - A distinct transition sound using DMS sound settings
 - Idle-aware timer pausing
-- 30 days of tracked sitting and standing totals
+- Daily sitting and standing totals with week, month, and all-time history
 - Automatic reminder cutoff after reaching the daily standing target
 - Shared state across every bar and monitor
 
@@ -30,6 +30,8 @@ ln -s "$PWD" ~/.config/dms/plugins/sitStandReminder
 dms ipc call plugin-scan scan
 ```
 
+Plugin reloads keep the previously loaded `SitStandMath.js`; run `dms restart` after changing it.
+
 Requires DMS 2.0 or newer and `notify-send` from `libnotify`.
 
 ## How to use it
@@ -37,7 +39,8 @@ Requires DMS 2.0 or newer and `notify-send` from `libnotify`.
 1. Open the widget and confirm whether you are sitting or standing.
 2. When a transition notification appears, change posture and confirm it from the notification or widget.
 3. The notification stays visible until you confirm, snooze, or close it. Closing it leaves the transition overdue.
-4. Pause reminders when you do not want them. Enabling them again resumes the same posture and interval where they stopped; after the configured staleness limit, it asks for your posture again.
+4. Select **Snooze for today** to silence reminders for the rest of the day while posture tracking continues. They resume automatically when the next statistics day starts, or earlier with **Resume reminders today**.
+5. Pause reminders when you do not want them. Enabling them again resumes the same posture and interval where they stopped; after the configured staleness limit, it asks for your posture again.
 
 On startup, today's saved posture is restored. If no posture has been recorded for the current day, the plugin starts with sitting.
 
@@ -66,6 +69,9 @@ dms ipc call sitStandReminder sit
 dms ipc call sitStandReminder stand
 dms ipc call sitStandReminder snooze 10
 dms ipc call sitStandReminder dismiss
+dms ipc call sitStandReminder snoozeToday
+dms ipc call sitStandReminder resumeToday
+dms ipc call sitStandReminder toggleSnoozeToday
 dms ipc call sitStandReminder remindNow
 dms ipc call sitStandReminder reset
 dms ipc call sitStandReminder status
@@ -74,6 +80,6 @@ dms ipc call sitStandReminder history
 
 `reset` restarts the current interval. `resetSession`, `resetToday`, and `resetAll` match the reset buttons in the plugin settings.
 
-The popout shows today plus the seven most recent completed days by default; selecting the graph cycles through 14 and 30 days. `history` returns all retained completed days as JSON. Only daily totals are stored; there is no event or activity log.
+The popout shows today plus the tracked days of the past week by default; selecting the graph cycles through the past month and all time. Days without tracking are left out. `history` returns all completed days as JSON. Only daily totals are stored; there is no event or activity log.
 
 Apart from the fresh-day sitting fallback, posture changes require explicit confirmation. Notification actions require support from the active notification server; the widget controls continue to work without them.

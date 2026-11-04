@@ -63,6 +63,13 @@ function standingTargetReached(standingSeconds, targetSeconds) {
     return Number(targetSeconds) > 0 && Number(standingSeconds) >= Number(targetSeconds);
 }
 
+function isDateKey(value) {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+        return false;
+    const date = new Date(value + "T12:00:00");
+    return Number.isFinite(date.getTime()) && dateKey(date.getTime()) === value;
+}
+
 function normalizeHistory(value, maximumDays) {
     if (typeof value === "string") {
         try {
@@ -75,10 +82,7 @@ function normalizeHistory(value, maximumDays) {
         return [];
     const days = {};
     value.forEach(entry => {
-        if (!entry || !/^\d{4}-\d{2}-\d{2}$/.test(entry.date))
-            return;
-        const date = new Date(entry.date + "T12:00:00");
-        if (!Number.isFinite(date.getTime()) || dateKey(date.getTime()) !== entry.date)
+        if (!entry || !isDateKey(entry.date))
             return;
         days[entry.date] = {
             date: entry.date,
@@ -110,8 +114,19 @@ function takeHistoryDay(history, date) {
     };
 }
 
-function historyChart(history, maximumDays) {
-    const days = (Array.isArray(history) ? history : []).slice(-Math.max(1, Math.floor(Number(maximumDays) || 7)));
+// Plots the recorded days of the last `maximumDays` calendar days before currentDate
+// (defaulting to today); 0 plots every recorded day.
+function historyChart(history, maximumDays, currentDate) {
+    let days = Array.isArray(history) ? history.filter(day => day && isDateKey(day.date)) : [];
+    const count = Math.floor(Number(maximumDays) || 0);
+    if (count > 0 && days.length > 0) {
+        const end = new Date((isDateKey(currentDate) ? currentDate : dateKey(Date.now())) + "T12:00:00");
+        end.setDate(end.getDate() - 1);
+        const endKey = dateKey(end.getTime());
+        end.setDate(end.getDate() - count + 1);
+        const startKey = dateKey(end.getTime());
+        days = days.filter(day => day.date >= startKey && day.date <= endKey);
+    }
     const chart = { days: days, sitting: [], standing: [], maximum: 1, sittingAverage: 0, standingAverage: 0, labels: [] };
     days.forEach(day => {
         const sitting = Math.max(0, Number(day.sittingSeconds) || 0);

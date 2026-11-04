@@ -14,14 +14,15 @@ PluginComponent {
     pluginService: PluginService
     layerNamespacePlugin: "sit-stand-reminder"
     popoutWidth: 440
-    popoutHeight: 410 + (recentHistory.length > 0 ? 165 : 0)
-    property int historyRange: 7
+    popoutHeight: 460 + (recentHistory.length > 0 ? 165 : 0)
+    property int historyRange: 7 // days; 0 is all time
+    readonly property string historyRangeText: historyRange === 7 ? "Week" : (historyRange === 30 ? "Month" : "All time")
     readonly property string reminderToggleText: enabledState.value ? "Pause reminders" : "Enable reminders"
     readonly property string reminderToggleIcon: enabledState.value ? "pause" : "play_arrow"
     readonly property string popoutStatusText: {
         if (!enabledState.value)
             return postureState.value === "unknown" ? "Disabled" : "Disabled • Was " + postureState.value + " for " + formatDuration(postureElapsedState.value);
-        if (postureState.value === "unknown" || idleState.value || returnGraceState.value)
+        if (postureState.value === "unknown" || snoozedTodayState.value || idleState.value || returnGraceState.value)
             return statusTextState.value;
         if (standingTargetReachedState.value)
             return postureLabel(postureState.value) + " for " + formatDuration(postureElapsedState.value) + " • Standing target reached";
@@ -32,15 +33,15 @@ PluginComponent {
     }
     readonly property string todayTotalsText: "Sitting " + formatDuration(todaySittingState.value) + "  •  Standing " + formatDuration(todayStandingState.value)
     readonly property string standingTargetText: "Standing target: " + Math.min(100, Math.round(todayStandingState.value * 100 / Math.max(1, targetStandingState.value))) + "% (" + formatDuration(targetStandingState.value).replace(" 0m", "") + ")"
-    readonly property var recentHistory: Array.isArray(dailyHistoryState.value) ? dailyHistoryState.value.slice(-30) : []
-    readonly property var historyChart: SitStandMath.historyChart(recentHistory, historyRange)
+    readonly property var recentHistory: Array.isArray(dailyHistoryState.value) ? dailyHistoryState.value : []
+    readonly property var historyChart: SitStandMath.historyChart(recentHistory, historyRange, currentDateState.value)
 
     function invoke(operation) {
         Quickshell.execDetached(["dms", "ipc", "call", "sitStandReminder", operation]);
     }
 
     function cycleHistoryRange() {
-        historyRange = historyRange === 7 ? 14 : (historyRange === 14 ? 30 : 7);
+        historyRange = historyRange === 7 ? 30 : (historyRange === 30 ? 0 : 7);
     }
 
     function formatDuration(seconds) {
@@ -64,6 +65,8 @@ PluginComponent {
     }
 
     function iconName() {
+        if (snoozedTodayState.value)
+            return "snooze";
         if (!enabledState.value || idleState.value || returnGraceState.value)
             return "pause";
         if (postureState.value === "unknown")
@@ -74,7 +77,7 @@ PluginComponent {
     }
 
     function iconColor() {
-        if (!enabledState.value || idleState.value || returnGraceState.value)
+        if (!enabledState.value || snoozedTodayState.value || idleState.value || returnGraceState.value)
             return Theme.surfaceVariantText;
         if (pendingTargetState.value)
             return Theme.warning;
@@ -86,6 +89,8 @@ PluginComponent {
             return "Off";
         if (postureState.value === "unknown")
             return "Set posture";
+        if (snoozedTodayState.value)
+            return "Snoozed";
         if (idleState.value || returnGraceState.value)
             return "Paused";
         if (standingTargetReachedState.value)
@@ -179,6 +184,14 @@ PluginComponent {
                         onClicked: root.invoke("reset")
                     }
                 }
+                DButton {
+                    x: Theme.spacingM
+                    width: parent.width - Theme.spacingM * 2
+                    text: snoozedTodayState.value ? "Resume reminders today" : "Snooze for today"
+                    iconName: snoozedTodayState.value ? "notifications_active" : "snooze"
+                    enabled: enabledState.value
+                    onClicked: root.invoke("toggleSnoozeToday")
+                }
 
                 StyledText {
                     leftPadding: Theme.spacingM
@@ -270,20 +283,20 @@ PluginComponent {
                             StyledText {
                                 width: parent.width - x
                                 anchors.baseline: historyTitle.baseline
-                                text: root.historyRange + " days"
+                                text: root.historyRangeText
                                 horizontalAlignment: Text.AlignRight
                                 font.pixelSize: Theme.fontSizeSmall
                                 color: Theme.primary
                             }
                         }
                         StyledText {
-                            visible: root.recentHistory.length === 0
-                            text: "Completed days will appear here"
+                            visible: root.historyChart.days.length === 0
+                            text: root.recentHistory.length === 0 ? "Completed days will appear here" : "No tracked days in this range"
                             font.pixelSize: Theme.fontSizeSmall
                             color: Theme.surfaceVariantText
                         }
                         Row {
-                            visible: root.recentHistory.length > 0
+                            visible: root.historyChart.days.length > 0
                             spacing: Theme.spacingM
                             Row {
                                 spacing: Theme.spacingXS
@@ -463,12 +476,14 @@ PluginComponent {
     PluginGlobalVar { id: remainingSecondsState; varName: "remainingSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: postureElapsedState; varName: "postureElapsedSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: pendingTargetState; varName: "pendingTarget"; defaultValue: "" }
+    PluginGlobalVar { id: snoozedTodayState; varName: "snoozedToday"; defaultValue: false }
     PluginGlobalVar { id: snoozeUntilState; varName: "snoozeUntil"; defaultValue: 0 }
     PluginGlobalVar { id: idleState; varName: "isIdle"; defaultValue: false }
     PluginGlobalVar { id: returnGraceState; varName: "isInReturnGrace"; defaultValue: false }
     PluginGlobalVar { id: todaySittingState; varName: "todaySittingSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: todayStandingState; varName: "todayStandingSeconds"; defaultValue: 0 }
     PluginGlobalVar { id: standingTargetReachedState; varName: "standingTargetReached"; defaultValue: false }
+    PluginGlobalVar { id: currentDateState; varName: "currentDate"; defaultValue: "" }
     PluginGlobalVar { id: dailyHistoryState; varName: "dailyHistory"; defaultValue: [] }
     PluginGlobalVar { id: targetStandingState; varName: "dailyStandingTargetSeconds"; defaultValue: 7200 }
     PluginGlobalVar { id: statusTextState; varName: "statusText"; defaultValue: "Set current posture" }

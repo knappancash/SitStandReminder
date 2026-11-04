@@ -86,4 +86,21 @@ root.handleClockGap(now);
 root.accountTo(now);
 assert.equal(root.todaySittingSeconds, sittingBefore);
 
+// Snoozing for today silences reminders until the next day, which starts a fresh interval.
+root = daemon({ posture: "sitting", currentDate: today, lastStateUpdateAt: now, postureStartedAt: now - 40 * M, dueAt: now - 10 * M, pendingTarget: "standing" });
+root.notifyAvailable = true;
+root.notificationActionsSupported = true;
+root.snoozeToday();
+assert.equal(root.pendingTarget, "");
+assert.equal(root.stateObject().snoozedDate, today);
+root.counts.sends = 0;
+root.evaluate(now + 2 * H);
+assert.equal(root.counts.sends, 0);
+const tomorrow = now + 24 * H;
+root.currentDate = SitStandMath.dateKey(tomorrow);
+root.evaluate(tomorrow);
+assert.equal(root.snoozedDate, "");
+assert.equal(root.dueAt, tomorrow + 30 * M);
+assert.equal(root.counts.sends, 0);
+
 console.log("test_daemon: passed");

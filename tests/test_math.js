@@ -54,7 +54,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(restored)), {
 });
 assert.equal(math.normalizeHistory("not json", 30).length, 0);
 assert.equal(math.normalizeHistory(JSON.stringify(history), 30).length, 2);
-const chart = math.historyChart(history, 5);
+const chart = math.historyChart(history, 2, "2026-01-03");
 assert.deepEqual(JSON.parse(JSON.stringify(chart)), {
     days: history,
     sitting: [200, 0],
@@ -67,14 +67,20 @@ assert.deepEqual(JSON.parse(JSON.stringify(chart)), {
         { index: 1, date: "2026-01-02" }
     ]
 });
-assert.deepEqual(JSON.parse(JSON.stringify(math.historyChart(history, 1).days)), [history[1]]);
+assert.deepEqual(JSON.parse(JSON.stringify(math.historyChart(history, 1, "2026-01-03").days)), [history[1]]);
+// Ranges are calendar days ending yesterday and only plot days tracked within them; 0 is all time.
+assert.deepEqual(math.historyChart(history, 2, "2026-01-04").days.map(day => day.date), ["2026-01-02"]);
+assert.equal(math.historyChart(history, 7, "2026-03-01").days.length, 0);
+assert.equal(math.historyChart(history, 0, "2026-03-01").days.length, 2);
+assert.equal(math.historyChart(history, 30).days.length, math.dateKey(Date.now()) <= "2026-01-31" ? 2 : 0);
 const thirtyDays = Array.from({ length: 30 }, (_, index) => ({
     date: "2026-01-" + String(index + 1).padStart(2, "0"),
     sittingSeconds: (index + 1) * 100,
     standingSeconds: (index + 1) * 20
 }));
-const fortnight = math.historyChart(thirtyDays, 14);
-assert.equal(math.historyChart(thirtyDays).days.length, 7);
+const fortnight = math.historyChart(thirtyDays, 14, "2026-01-31");
+assert.equal(math.historyChart(thirtyDays, 7, "2026-01-31").days.length, 7);
+assert.equal(math.historyChart(thirtyDays).days.length, 30);
 assert.equal(fortnight.days.length, 14);
 assert.equal(fortnight.days[0].date, "2026-01-17");
 assert.equal(fortnight.sittingAverage, 2350);
